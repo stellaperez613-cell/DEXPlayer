@@ -5,8 +5,8 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -15,9 +15,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
@@ -27,13 +28,71 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 // ─────────────────────────────────────────────
+//  SCALE — 125%
+// ─────────────────────────────────────────────
+
+private val IconSizeSm   = 22   // era 18
+private val IconSizeMd   = 20   // era 16
+private val IconBtnSize  = 38   // era 28-32
+private val PlayBtnSize  = 40   // era 32
+private val PlayIconSize = 22   // era 18
+private val TimecodeSize = 13   // era 11sp
+private val StatusSize   = 12   // era 10sp
+private val MenuIconSize = 17   // era 14
+private val MenuTextSize = 14   // era 12sp
+private val SeekHeight   = 30   // era 24dp
+private val VolumeWidth  = 100  // era 80dp
+private val BarPadV      = 4    // era 2dp vertical padding toolbar
+private val BarPadH      = 6    // era 4dp horizontal padding toolbar
+
+// ─────────────────────────────────────────────
+//  COLORS
+// ─────────────────────────────────────────────
+
+private val BgPrimary  = Color(0xFF0D0D0D)
+private val AccentBlue = Color(0xFF4A90D9)
+private val SeekTrack  = Color(0xFF3A3A3A)
+
+data class PlayerColors(
+    val bgToolbar: Color,
+    val bgToolbarTop: Color,
+    val bgHover: Color,
+    val border: Color,
+    val textPrimary: Color,
+    val textSecondary: Color
+)
+
+@Composable
+fun playerColors(): PlayerColors = if (isSystemInDarkTheme()) {
+    PlayerColors(
+        bgToolbar    = Color(0xFF1A1A1A),
+        bgToolbarTop = Color(0xFF141414),
+        bgHover      = Color(0xFF2A2A2A),
+        border       = Color(0xFF2E2E2E),
+        textPrimary  = Color(0xFFFFFFFF),
+        textSecondary= Color(0xFFFFFFFF)
+    )
+} else {
+    PlayerColors(
+        bgToolbar    = Color(0xFFFFFFFF),
+        bgToolbarTop = Color(0xFFFFFFFF),
+        bgHover      = Color(0xFFEEEEEE),
+        border       = Color(0xFFDDDDDD),
+        textPrimary  = Color(0xFF1A1A1A),
+        textSecondary= Color(0xFF555555)
+    )
+}
+
+// ─────────────────────────────────────────────
 //  DATA
 // ─────────────────────────────────────────────
 
-data class ContextMenuItem(
+data class MenuItem(
     val label: String,
-    val icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
-    val submenu: List<ContextMenuItem> = emptyList(),
+    val shortcut: String = "",
+    val icon: ImageVector? = null,
+    val submenu: List<MenuItem> = emptyList(),
+    val dividerAfter: Boolean = false,
     val onClick: () -> Unit = {}
 )
 
@@ -43,131 +102,126 @@ data class ContextMenuItem(
 
 @Composable
 fun PlayerScreen() {
-    val colorScheme = MaterialTheme.colorScheme
-    val scope = rememberCoroutineScope()
+    val scope  = rememberCoroutineScope()
+    val colors = playerColors()
 
-    // State
     var controlsVisible by remember { mutableStateOf(true) }
-    var isPlaying by remember { mutableStateOf(false) }
-    var progress by remember { mutableStateOf(0.35f) }
-    var volume by remember { mutableStateOf(0.8f) }
+    var isPlaying       by remember { mutableStateOf(false) }
+    var progress        by remember { mutableStateOf(0.28f) }
+    var volume          by remember { mutableStateOf(0.75f) }
+    var isMuted         by remember { mutableStateOf(false) }
     var showContextMenu by remember { mutableStateOf(false) }
-    var contextMenuOffset by remember { mutableStateOf(DpOffset.Zero) }
-    var isMuted by remember { mutableStateOf(false) }
+    var menuOffset      by remember { mutableStateOf(DpOffset.Zero) }
+    var expandedSub     by remember { mutableStateOf<String?>(null) }
 
-    // Auto-hide controls
-    fun resetHideTimer() {
+    fun resetHide() {
         scope.launch {
-            delay(3000)
+            delay(3500)
             if (isPlaying) controlsVisible = false
         }
     }
 
-    // Context menu items
     val contextMenuItems = listOf(
-        ContextMenuItem("Audio Track", Icons.Rounded.Audiotrack, listOf(
-            ContextMenuItem("Track 1 – Español") {},
-            ContextMenuItem("Track 2 – English") {},
-            ContextMenuItem("Track 3 – Japanese") {}
+        MenuItem("Open File…", "Ctrl+O", Icons.Rounded.FolderOpen, dividerAfter = true),
+        MenuItem("Audio Track", icon = Icons.Rounded.Audiotrack, submenu = listOf(
+            MenuItem("Track 1 – Español (AC3 5.1)"),
+            MenuItem("Track 2 – English (DTS)"),
+            MenuItem("Track 3 – Japanese (AAC)")
         )),
-        ContextMenuItem("Subtítulos", Icons.Rounded.Subtitles, listOf(
-            ContextMenuItem("Desactivar") {},
-            ContextMenuItem("Español SRT") {},
-            ContextMenuItem("English ASS") {}
+        MenuItem("Subtitles", icon = Icons.Rounded.Subtitles, submenu = listOf(
+            MenuItem("Disabled"),
+            MenuItem("Español.srt"),
+            MenuItem("English.ass")
         )),
-        ContextMenuItem("Velocidad", Icons.Rounded.Speed, listOf(
-            ContextMenuItem("0.5×") {},
-            ContextMenuItem("1.0× (normal)") {},
-            ContextMenuItem("1.5×") {},
-            ContextMenuItem("2.0×") {}
+        MenuItem("Playback Speed", icon = Icons.Rounded.Speed, submenu = listOf(
+            MenuItem("0.5×"),
+            MenuItem("0.75×"),
+            MenuItem("1.0×  (Normal)"),
+            MenuItem("1.25×"),
+            MenuItem("1.5×"),
+            MenuItem("2.0×")
+        ), dividerAfter = true),
+        MenuItem("Aspect Ratio", icon = Icons.Rounded.AspectRatio, submenu = listOf(
+            MenuItem("Auto"),
+            MenuItem("16:9"),
+            MenuItem("4:3"),
+            MenuItem("2.35:1"),
+            MenuItem("Stretch")
         )),
-        ContextMenuItem("Aspect Ratio", Icons.Rounded.AspectRatio, listOf(
-            ContextMenuItem("Auto") {},
-            ContextMenuItem("16:9") {},
-            ContextMenuItem("4:3") {},
-            ContextMenuItem("Stretch") {}
-        )),
-        ContextMenuItem("Pantalla completa", Icons.Rounded.Fullscreen) {},
-        ContextMenuItem("Abrir archivo…", Icons.Rounded.FolderOpen) {},
-        ContextMenuItem("Información del archivo", Icons.Rounded.Info) {}
+        MenuItem("Zoom", icon = Icons.Rounded.ZoomIn, submenu = listOf(
+            MenuItem("50%"),
+            MenuItem("100%"),
+            MenuItem("150%"),
+            MenuItem("200%")
+        ), dividerAfter = true),
+        MenuItem("Properties", "Alt+Return", Icons.Rounded.Info),
+        MenuItem("Toggle Fullscreen", "Alt+Enter", Icons.Rounded.Fullscreen)
     )
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(BgPrimary)
             .pointerInput(Unit) {
                 detectTapGestures(
                     onTap = {
                         controlsVisible = !controlsVisible
-                        if (controlsVisible && isPlaying) resetHideTimer()
+                        if (controlsVisible && isPlaying) resetHide()
                     }
                 )
             }
     ) {
-
-        // ── Video surface placeholder ──────────────────
+        // ── Video area ──────────────────────────────
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xFF0A0A0A)),
+            modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-            // In real app: AndroidView { SurfaceView } bound to MPV
             Icon(
-                imageVector = Icons.Rounded.Movie,
+                Icons.Rounded.Movie,
                 contentDescription = null,
-                tint = Color.White.copy(alpha = 0.05f),
-                modifier = Modifier.size(120.dp)
+                tint = Color.White.copy(alpha = 0.04f),
+                modifier = Modifier.size(96.dp)
             )
         }
 
-        // ── Top gradient + bar ─────────────────────────
+        // ── Top bar ─────────────────────────────────
         AnimatedVisibility(
             visible = controlsVisible,
-            enter = fadeIn(tween(200)) + slideInVertically(tween(200)) { -it },
-            exit = fadeOut(tween(300)) + slideOutVertically(tween(300)) { -it }
+            enter = fadeIn(tween(150)) + slideInVertically(tween(150)) { -it },
+            exit  = fadeOut(tween(250)) + slideOutVertically(tween(250)) { -it }
         ) {
-            TopBar(
-                title = "Blade.Runner.2049.2017.2160p.UHD.BluRay.mkv",
-                colorScheme = colorScheme
-            )
+            MpcTopBar(colors)
         }
 
-        // ── Bottom gradient + controls ─────────────────
+        // ── Bottom controls ─────────────────────────
         AnimatedVisibility(
             visible = controlsVisible,
             modifier = Modifier.align(Alignment.BottomCenter),
-            enter = fadeIn(tween(200)) + slideInVertically(tween(200)) { it },
-            exit = fadeOut(tween(300)) + slideOutVertically(tween(300)) { it }
+            enter = fadeIn(tween(150)) + slideInVertically(tween(150)) { it },
+            exit  = fadeOut(tween(250)) + slideOutVertically(tween(250)) { it }
         ) {
-            BottomControls(
-                isPlaying = isPlaying,
-                progress = progress,
-                volume = volume,
-                isMuted = isMuted,
-                colorScheme = colorScheme,
-                onPlayPause = {
-                    isPlaying = !isPlaying
-                    if (isPlaying) resetHideTimer()
-                },
+            MpcBottomBar(
+                colors           = colors,
+                isPlaying        = isPlaying,
+                progress         = progress,
+                volume           = volume,
+                isMuted          = isMuted,
+                onPlayPause      = { isPlaying = !isPlaying; if (isPlaying) resetHide() },
                 onProgressChange = { progress = it },
-                onVolumeChange = { volume = it },
-                onMuteToggle = { isMuted = !isMuted },
-                onRightClick = { offset ->
-                    contextMenuOffset = offset
-                    showContextMenu = true
-                }
+                onVolumeChange   = { volume = it },
+                onMuteToggle     = { isMuted = !isMuted }
             )
         }
 
-        // ── Context Menu ───────────────────────────────
+        // ── Context menu ────────────────────────────
         if (showContextMenu) {
-            PlayerContextMenu(
-                items = contextMenuItems,
-                offset = contextMenuOffset,
-                onDismiss = { showContextMenu = false },
-                colorScheme = colorScheme
+            MpcContextMenu(
+                items       = contextMenuItems,
+                offset      = menuOffset,
+                expandedSub = expandedSub,
+                colors      = colors,
+                onExpandSub = { expandedSub = if (expandedSub == it) null else it },
+                onDismiss   = { showContextMenu = false; expandedSub = null }
             )
         }
     }
@@ -178,319 +232,315 @@ fun PlayerScreen() {
 // ─────────────────────────────────────────────
 
 @Composable
-fun TopBar(title: String, colorScheme: ColorScheme) {
+fun MpcTopBar(colors: PlayerColors) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(Color.Black.copy(alpha = 0.75f), Color.Transparent)
-                )
-            )
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .statusBarsPadding()
+            .background(colors.bgToolbar)
     ) {
         Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Window/back button (DEX)
-            IconButton(onClick = {}) {
-                Icon(
-                    Icons.Rounded.ArrowBackIosNew,
-                    contentDescription = "Back",
-                    tint = Color.White,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-
-            Spacer(Modifier.width(8.dp))
-
             Text(
-                text = title,
-                color = Color.White.copy(alpha = 0.9f),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Normal,
+                text = "Blade.Runner.2049.2017.2160p.UHD.BluRay.HEVC.TrueHD.7.1.Atmos-HUNO.mkv",
+                color = colors.textSecondary,
+                fontSize = TimecodeSize.sp,
+                fontFamily = FontFamily.Monospace,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 4.dp)
             )
-
-            // Menu button
-            IconButton(onClick = {}) {
-                Icon(
-                    Icons.Rounded.MoreVert,
-                    contentDescription = "Menu",
-                    tint = Color.White,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
+            MpcIconBtn(
+                icon   = Icons.Rounded.MoreVert,
+                desc   = "Menu",
+                size   = IconSizeMd,
+                colors = colors
+            )
         }
     }
 }
 
 // ─────────────────────────────────────────────
-//  BOTTOM CONTROLS
+//  BOTTOM BAR
 // ─────────────────────────────────────────────
 
 @Composable
-fun BottomControls(
+fun MpcBottomBar(
+    colors: PlayerColors,
     isPlaying: Boolean,
     progress: Float,
     volume: Float,
     isMuted: Boolean,
-    colorScheme: ColorScheme,
     onPlayPause: () -> Unit,
     onProgressChange: (Float) -> Unit,
     onVolumeChange: (Float) -> Unit,
-    onMuteToggle: () -> Unit,
-    onRightClick: (DpOffset) -> Unit
+    onMuteToggle: () -> Unit
 ) {
-    val accentColor = colorScheme.primary
-
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
-                )
-            )
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .windowInsetsPadding(WindowInsets.systemBars)
+            .background(colors.bgToolbar)
     ) {
-        Column {
-            // ── Seekbar ──────────────────────────────────
-            Slider(
-                value = progress,
-                onValueChange = onProgressChange,
-                colors = SliderDefaults.colors(
-                    thumbColor = accentColor,
-                    activeTrackColor = accentColor,
-                    inactiveTrackColor = Color.White.copy(alpha = 0.25f)
-                ),
-                modifier = Modifier.fillMaxWidth()
+        // ── Seekbar ──────────────────────────────────
+        Slider(
+            value = progress,
+            onValueChange = onProgressChange,
+            colors = SliderDefaults.colors(
+                thumbColor         = AccentBlue,
+                activeTrackColor   = AccentBlue,
+                inactiveTrackColor = SeekTrack
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(SeekHeight.dp)
+                .padding(horizontal = 8.dp)
+        )
+
+        // ── Toolbar ──────────────────────────────────
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = BarPadH.dp, vertical = BarPadV.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            MpcIconBtn(Icons.Rounded.SkipPrevious, "Previous", colors = colors, size = IconSizeSm)
+            MpcIconBtn(Icons.Rounded.Replay10,     "−10s",     colors = colors, size = IconSizeSm)
+
+            // Play/Pause
+            Box(
+                modifier = Modifier
+                    .size(PlayBtnSize.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(colors.bgHover)
+                    .clickable(onClick = onPlayPause),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                    contentDescription = null,
+                    tint = colors.textPrimary,
+                    modifier = Modifier.size(PlayIconSize.dp)
+                )
+            }
+
+            MpcIconBtn(Icons.Rounded.Forward10, "+10s", colors = colors, size = IconSizeSm)
+            MpcIconBtn(Icons.Rounded.SkipNext,  "Next", colors = colors, size = IconSizeSm)
+
+            Spacer(Modifier.width(8.dp))
+
+            Text(
+                text = "01:24:33 / 02:43:52",
+                color = colors.textSecondary,
+                fontSize = TimecodeSize.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Normal
             )
 
-            // ── Controls row ─────────────────────────────
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
+            Spacer(Modifier.weight(1f))
+
+            MpcIconBtn(
+                icon = if (isMuted) Icons.Rounded.VolumeOff
+                       else if (volume > 0.5f) Icons.Rounded.VolumeUp
+                       else Icons.Rounded.VolumeDown,
+                desc    = "Mute",
+                colors  = colors,
+                size    = IconSizeSm,
+                onClick = onMuteToggle
+            )
+
+            Slider(
+                value = if (isMuted) 0f else volume,
+                onValueChange = onVolumeChange,
+                colors = SliderDefaults.colors(
+                    thumbColor         = colors.textSecondary,
+                    activeTrackColor   = colors.textSecondary,
+                    inactiveTrackColor = SeekTrack
+                ),
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 4.dp)
-            ) {
-                // Skip back
-                IconButton(onClick = {}) {
-                    Icon(
-                        Icons.Rounded.Replay10,
-                        contentDescription = "−10s",
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
+                    .width(VolumeWidth.dp)
+                    .height(SeekHeight.dp)
+            )
 
-                // Play / Pause — slightly larger
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(accentColor.copy(alpha = 0.15f))
-                        .clickable(onClick = onPlayPause),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                        contentDescription = if (isPlaying) "Pause" else "Play",
-                        tint = Color.White,
-                        modifier = Modifier.size(26.dp)
-                    )
-                }
+            Spacer(Modifier.width(10.dp))
+            HorizontalDivider(
+                modifier  = Modifier.height(20.dp).width(0.5.dp),
+                color     = colors.border
+            )
+            Spacer(Modifier.width(10.dp))
 
-                // Skip forward
-                IconButton(onClick = {}) {
-                    Icon(
-                        Icons.Rounded.Forward10,
-                        contentDescription = "+10s",
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
+            MpcIconBtn(Icons.Rounded.Subtitles,  "Subtitles",  colors = colors, size = IconSizeSm)
+            MpcIconBtn(Icons.Rounded.QueueMusic, "Playlist",   colors = colors, size = IconSizeSm)
+            MpcIconBtn(Icons.Rounded.Fullscreen, "Fullscreen", colors = colors, size = IconSizeSm)
+        }
 
-                // Timecode
-                Text(
-                    text = "1:24:33 / 2:43:52",
-                    color = Color.White.copy(alpha = 0.75f),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(start = 4.dp)
-                )
-
-                Spacer(Modifier.weight(1f))
-
-                // Volume
-                IconButton(onClick = onMuteToggle) {
-                    Icon(
-                        imageVector = if (isMuted) Icons.Rounded.VolumeOff
-                        else if (volume > 0.5f) Icons.Rounded.VolumeUp
-                        else Icons.Rounded.VolumeDown,
-                        contentDescription = "Volume",
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                Slider(
-                    value = if (isMuted) 0f else volume,
-                    onValueChange = onVolumeChange,
-                    colors = SliderDefaults.colors(
-                        thumbColor = Color.White,
-                        activeTrackColor = Color.White,
-                        inactiveTrackColor = Color.White.copy(alpha = 0.25f)
-                    ),
-                    modifier = Modifier.width(90.dp)
-                )
-
-                Spacer(Modifier.width(8.dp))
-
-                // Subtitles
-                IconButton(onClick = {}) {
-                    Icon(
-                        Icons.Rounded.Subtitles,
-                        contentDescription = "Subtítulos",
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                // Playlist
-                IconButton(onClick = {}) {
-                    Icon(
-                        Icons.Rounded.QueueMusic,
-                        contentDescription = "Playlist",
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                // Fullscreen
-                IconButton(onClick = {}) {
-                    Icon(
-                        Icons.Rounded.Fullscreen,
-                        contentDescription = "Pantalla completa",
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-            }
+        // ── Status bar ───────────────────────────────
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF111111))
+                .padding(horizontal = 10.dp, vertical = 3.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "2160p • HEVC • TrueHD 7.1 • 60fps",
+                color      = Color(0xFFFFFFFF),
+                fontSize   = StatusSize.sp,
+                fontFamily = FontFamily.Monospace
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                "CPU: 12%  •  HW Decode",
+                color      = Color(0xFFFFFFFF),
+                fontSize   = StatusSize.sp,
+                fontFamily = FontFamily.Monospace
+            )
         }
     }
 }
 
 // ─────────────────────────────────────────────
-//  CONTEXT MENU (click derecho estilo DEX)
+//  CONTEXT MENU
 // ─────────────────────────────────────────────
 
 @Composable
-fun PlayerContextMenu(
-    items: List<ContextMenuItem>,
+fun MpcContextMenu(
+    items: List<MenuItem>,
     offset: DpOffset,
-    onDismiss: () -> Unit,
-    colorScheme: ColorScheme
+    expandedSub: String?,
+    colors: PlayerColors,
+    onExpandSub: (String) -> Unit,
+    onDismiss: () -> Unit
 ) {
-    var expandedSubmenu by remember { mutableStateOf<String?>(null) }
-
     DropdownMenu(
         expanded = true,
         onDismissRequest = onDismiss,
         offset = offset,
         modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(colorScheme.surfaceContainerHigh)
-            .width(220.dp)
+            .background(colors.bgToolbar)
+            .width(260.dp)
+            .border(BorderStroke(0.5.dp, colors.border))
     ) {
         items.forEach { item ->
             if (item.submenu.isNotEmpty()) {
-                // Item with submenu
                 DropdownMenuItem(
                     text = {
-                        Text(
-                            item.label,
-                            fontSize = 14.sp,
-                            color = colorScheme.onSurface
-                        )
-                    },
-                    leadingIcon = item.icon?.let { icon ->
-                        {
+                        Row(Modifier.fillMaxWidth()) {
+                            Text(
+                                item.label,
+                                fontSize = MenuTextSize.sp,
+                                color    = colors.textPrimary,
+                                modifier = Modifier.weight(1f)
+                            )
                             Icon(
-                                icon,
-                                contentDescription = null,
-                                tint = colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
+                                Icons.Rounded.ChevronRight,
+                                null,
+                                tint     = colors.textSecondary,
+                                modifier = Modifier.size(MenuIconSize.dp)
                             )
                         }
                     },
-                    trailingIcon = {
-                        Icon(
-                            Icons.Rounded.ChevronRight,
-                            contentDescription = null,
-                            tint = colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(16.dp)
-                        )
+                    leadingIcon = item.icon?.let {
+                        { Icon(it, null, tint = colors.textSecondary,
+                            modifier = Modifier.size(MenuIconSize.dp)) }
                     },
-                    onClick = {
-                        expandedSubmenu = if (expandedSubmenu == item.label) null else item.label
-                    }
+                    onClick  = { onExpandSub(item.label) },
+                    colors   = MenuDefaults.itemColors(textColor = colors.textPrimary),
+                    modifier = Modifier.background(
+                        if (expandedSub == item.label) colors.bgHover else Color.Transparent
+                    )
                 )
-
-                // Inline submenu (simplified — real app uses nested DropdownMenu)
-                AnimatedVisibility(visible = expandedSubmenu == item.label) {
+                AnimatedVisibility(visible = expandedSub == item.label) {
                     Column(
-                        modifier = Modifier
+                        Modifier
                             .fillMaxWidth()
-                            .background(colorScheme.surfaceContainerHighest)
+                            .background(colors.bgHover)
+                            .border(BorderStroke(0.5.dp, colors.border))
                     ) {
                         item.submenu.forEach { sub ->
                             DropdownMenuItem(
                                 text = {
-                                    Text(
-                                        sub.label,
-                                        fontSize = 13.sp,
-                                        color = colorScheme.onSurfaceVariant
-                                    )
+                                    Text(sub.label, fontSize = MenuTextSize.sp,
+                                        color = colors.textPrimary)
                                 },
-                                onClick = {
-                                    sub.onClick()
-                                    onDismiss()
-                                },
-                                modifier = Modifier.padding(start = 16.dp)
+                                onClick  = { sub.onClick(); onDismiss() },
+                                modifier = Modifier.padding(start = 14.dp).height(32.dp),
+                                colors   = MenuDefaults.itemColors(textColor = colors.textPrimary)
                             )
                         }
                     }
                 }
-
             } else {
                 DropdownMenuItem(
                     text = {
-                        Text(
-                            item.label,
-                            fontSize = 14.sp,
-                            color = colorScheme.onSurface
-                        )
-                    },
-                    leadingIcon = item.icon?.let { icon ->
-                        {
-                            Icon(
-                                icon,
-                                contentDescription = null,
-                                tint = colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
+                        Row(Modifier.fillMaxWidth()) {
+                            Text(
+                                item.label,
+                                fontSize = MenuTextSize.sp,
+                                color    = colors.textPrimary,
+                                modifier = Modifier.weight(1f)
                             )
+                            if (item.shortcut.isNotEmpty()) {
+                                Text(item.shortcut, fontSize = (MenuTextSize - 2).sp,
+                                    color = colors.textSecondary)
+                            }
                         }
                     },
-                    onClick = {
-                        item.onClick()
-                        onDismiss()
-                    }
+                    leadingIcon = item.icon?.let {
+                        { Icon(it, null, tint = colors.textSecondary,
+                            modifier = Modifier.size(MenuIconSize.dp)) }
+                    },
+                    onClick  = { item.onClick(); onDismiss() },
+                    colors   = MenuDefaults.itemColors(textColor = colors.textPrimary),
+                    modifier = Modifier.height(36.dp)
+                )
+            }
+
+            if (item.dividerAfter) {
+                HorizontalDivider(
+                    color     = colors.border,
+                    thickness = 0.5.dp,
+                    modifier  = Modifier.padding(vertical = 2.dp)
                 )
             }
         }
+    }
+}
+
+// ─────────────────────────────────────────────
+//  HELPER — botón icono compacto
+// ─────────────────────────────────────────────
+
+@Composable
+fun MpcIconBtn(
+    icon: ImageVector,
+    desc: String,
+    colors: PlayerColors,
+    size: Int = IconSizeSm,
+    onClick: () -> Unit = {}
+) {
+    Box(
+        modifier = Modifier
+            .size((size + 12).dp)
+            .clip(RoundedCornerShape(2.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication        = LocalIndication.current,
+                onClick           = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector        = icon,
+            contentDescription = desc,
+            tint               = colors.textSecondary,
+            modifier           = Modifier.size(size.dp)
+        )
     }
 }
