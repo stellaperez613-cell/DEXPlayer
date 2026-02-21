@@ -1,9 +1,10 @@
-package com.example.dexplayer.mpv
+package `is`.xyz.mpv
 
 import android.content.Context
 import android.graphics.Bitmap
 import android.view.Surface
 
+// Wrapper for native library
 
 @Suppress("unused")
 object MPVLib {

@@ -1,5 +1,11 @@
 package com.example.dexplayer
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -18,12 +24,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import `is`.xyz.mpv.MPVLib
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -31,19 +42,19 @@ import kotlinx.coroutines.launch
 //  SCALE — 125%
 // ─────────────────────────────────────────────
 
-private val IconSizeSm   = 22   // era 18
-private val IconSizeMd   = 20   // era 16
-private val IconBtnSize  = 38   // era 28-32
-private val PlayBtnSize  = 40   // era 32
-private val PlayIconSize = 22   // era 18
-private val TimecodeSize = 13   // era 11sp
-private val StatusSize   = 12   // era 10sp
-private val MenuIconSize = 17   // era 14
-private val MenuTextSize = 14   // era 12sp
-private val SeekHeight   = 30   // era 24dp
-private val VolumeWidth  = 100  // era 80dp
-private val BarPadV      = 4    // era 2dp vertical padding toolbar
-private val BarPadH      = 6    // era 4dp horizontal padding toolbar
+private val IconSizeSm   = 22
+private val IconSizeMd   = 20
+private val IconBtnSize  = 38
+private val PlayBtnSize  = 40
+private val PlayIconSize = 22
+private val TimecodeSize = 13
+private val StatusSize   = 12
+private val MenuIconSize = 17
+private val MenuTextSize = 14
+private val SeekHeight   = 30
+private val VolumeWidth  = 100
+private val BarPadV      = 4
+private val BarPadH      = 6
 
 // ─────────────────────────────────────────────
 //  COLORS
@@ -97,27 +108,253 @@ data class MenuItem(
 )
 
 // ─────────────────────────────────────────────
+//  PLAYER STATE HOLDER
+// ─────────────────────────────────────────────
+
+class PlayerState {
+    var isPlaying by mutableStateOf(false)
+    var progress by mutableStateOf(0f)
+    var duration by mutableStateOf(0)
+    var currentPos by mutableStateOf(0)
+    var volume by mutableStateOf(0.75f)
+    var isMuted by mutableStateOf(false)
+    var isLoading by mutableStateOf(true)
+    var errorMessage by mutableStateOf<String?>(null)
+    var mediaInfo by mutableStateOf("")
+}
+
+@Composable
+fun rememberPlayerState(): PlayerState {
+    return remember { PlayerState() }
+}
+
+// ─────────────────────────────────────────────
 //  MAIN SCREEN
 // ─────────────────────────────────────────────
 
+private const val TAG = "PlayerScreen"
+
 @Composable
 fun PlayerScreen() {
-    val scope  = rememberCoroutineScope()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val colors = playerColors()
+    val playerState = rememberPlayerState()
 
     var controlsVisible by remember { mutableStateOf(true) }
-    var isPlaying       by remember { mutableStateOf(false) }
-    var progress        by remember { mutableStateOf(0.28f) }
-    var volume          by remember { mutableStateOf(0.75f) }
-    var isMuted         by remember { mutableStateOf(false) }
     var showContextMenu by remember { mutableStateOf(false) }
-    var menuOffset      by remember { mutableStateOf(DpOffset.Zero) }
-    var expandedSub     by remember { mutableStateOf<String?>(null) }
+    var menuOffset by remember { mutableStateOf(DpOffset.Zero) }
+    var expandedSub by remember { mutableStateOf<String?>(null) }
+    var hideJob by remember { mutableStateOf<Job?>(null) }
 
-    fun resetHide() {
-        scope.launch {
+    // Estado del surface
+    var surfaceReady by remember { mutableStateOf(false) }
+    var pendingFile by remember { mutableStateOf<String?>(null) }
+
+    // Permisos - diferentes según versión de Android
+    fun checkStoragePermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // Android 13+ usa READ_MEDIA_VIDEO
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.READ_MEDIA_VIDEO
+            ) == PackageManager.PERMISSION_GRANTED
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Android 11-12: Scoped storage, pero READ_EXTERNAL_STORAGE aún funciona para media
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.READ_EXTERNAL_STORAGE
+            ) == PackageManager.PERMISSION_GRANTED
+        } else {
+            // Android 10 y menor
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.READ_EXTERNAL_STORAGE
+            ) == PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    var hasStoragePermission by remember { mutableStateOf(checkStoragePermission()) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        hasStoragePermission = permissions.values.any { it }
+        if (hasStoragePermission) {
+            Log.d(TAG, "Storage permission granted")
+        } else {
+            playerState.errorMessage = "Se requiere permiso de almacenamiento para reproducir videos"
+        }
+    }
+
+    // Función para cargar archivo de forma segura
+    fun loadFile(path: String) {
+        if (!MainActivity.isMpvInitialized) {
+            Log.e(TAG, "Cannot load file - MPV not initialized")
+            playerState.errorMessage = "MPV no inicializado"
+            return
+        }
+
+        if (!surfaceReady) {
+            Log.d(TAG, "Surface not ready, queuing file: $path")
+            pendingFile = path
+            return
+        }
+
+        try {
+            playerState.isLoading = true
+            playerState.errorMessage = null
+
+            Log.d(TAG, "Loading file: $path")
+            MPVLib.command(arrayOf("loadfile", path))
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error loading file", e)
+            playerState.errorMessage = "Error: ${e.message}"
+            playerState.isLoading = false
+        }
+    }
+
+    // Callback cuando el surface está listo
+    val onSurfaceReady: () -> Unit = {
+        Log.d(TAG, "Surface ready callback")
+        surfaceReady = true
+
+        // Cargar archivo pendiente si existe
+        pendingFile?.let { file ->
+            Log.d(TAG, "Loading pending file: $file")
+            scope.launch {
+                delay(100) // Pequeño delay para asegurar estabilidad
+                loadFile(file)
+                pendingFile = null
+            }
+        }
+    }
+
+    val onSurfaceDestroyed: () -> Unit = {
+        Log.d(TAG, "Surface destroyed callback")
+        surfaceReady = false
+    }
+
+    // Observer de MPV
+    DisposableEffect(Unit) {
+        if (!MainActivity.isMpvInitialized) {
+            Log.e(TAG, "MPV not initialized, skipping observer setup")
+            return@DisposableEffect onDispose { }
+        }
+
+        val observer = object : MPVLib.EventObserver {
+            override fun eventProperty(property: String) {
+                Log.v(TAG, "Property changed: $property")
+            }
+
+            override fun eventProperty(property: String, value: Long) {
+                when (property) {
+                    "time-pos" -> {
+                        playerState.currentPos = value.toInt()
+                        if (playerState.duration > 0) {
+                            playerState.progress = value.toFloat() / playerState.duration
+                        }
+                    }
+                    "duration" -> {
+                        playerState.duration = value.toInt()
+                    }
+                }
+            }
+
+            override fun eventProperty(property: String, value: Boolean) {
+                when (property) {
+                    "pause" -> {
+                        playerState.isPlaying = !value
+                    }
+                    "seeking" -> {
+                        playerState.isLoading = value
+                    }
+                }
+            }
+
+            override fun eventProperty(property: String, value: Double) {}
+
+            override fun eventProperty(property: String, value: String) {
+                when (property) {
+                    "media-title" -> {
+                        Log.d(TAG, "Media title: $value")
+                    }
+                }
+            }
+
+            override fun event(eventId: Int) {
+                when (eventId) {
+                    MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED -> {
+                        Log.d(TAG, "File loaded")
+                        playerState.isLoading = false
+                        playerState.errorMessage = null
+                    }
+                    MPVLib.MpvEvent.MPV_EVENT_PLAYBACK_RESTART -> {
+                        Log.d(TAG, "Playback restart")
+                        playerState.isLoading = false
+                    }
+                    MPVLib.MpvEvent.MPV_EVENT_END_FILE -> {
+                        Log.d(TAG, "End file")
+                    }
+                }
+            }
+        }
+
+        try {
+            MPVLib.addObserver(observer)
+            MPVLib.observeProperty("time-pos", MPVLib.MpvFormat.MPV_FORMAT_INT64)
+            MPVLib.observeProperty("duration", MPVLib.MpvFormat.MPV_FORMAT_INT64)
+            MPVLib.observeProperty("pause", MPVLib.MpvFormat.MPV_FORMAT_FLAG)
+            MPVLib.observeProperty("seeking", MPVLib.MpvFormat.MPV_FORMAT_FLAG)
+
+            Log.d(TAG, "Observer registered successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting up observer", e)
+        }
+
+        onDispose {
+            try {
+                MPVLib.removeObserver(observer)
+                Log.d(TAG, "Observer removed")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error removing observer", e)
+            }
+        }
+    }
+
+    // Auto-hide controls con cancelación
+    fun scheduleHide() {
+        hideJob?.cancel()
+        hideJob = scope.launch {
             delay(3500)
-            if (isPlaying) controlsVisible = false
+            if (playerState.isPlaying) {
+                controlsVisible = false
+            }
+        }
+    }
+
+    // Solicitar permisos al inicio
+    LaunchedEffect(Unit) {
+        if (!hasStoragePermission) {
+            val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                arrayOf(
+                    Manifest.permission.READ_MEDIA_VIDEO,
+                    Manifest.permission.READ_MEDIA_AUDIO
+                )
+            } else {
+                arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+            }
+            permissionLauncher.launch(permissions)
+        }
+    }
+
+    // Cargar archivo inicial cuando todo esté listo
+    LaunchedEffect(hasStoragePermission, surfaceReady) {
+        if (hasStoragePermission && surfaceReady && pendingFile == null) {
+            // Aquí puedes cambiar el archivo a cargar
+            val testFile = "/storage/emulated/0/Movies/Hikaru No Go 36.mkv"
+            loadFile(testFile)
         }
     }
 
@@ -166,62 +403,116 @@ fun PlayerScreen() {
                 detectTapGestures(
                     onTap = {
                         controlsVisible = !controlsVisible
-                        if (controlsVisible && isPlaying) resetHide()
+                        if (controlsVisible && playerState.isPlaying) {
+                            scheduleHide()
+                        }
                     }
                 )
             }
     ) {
-        // ── Video area ──────────────────────────────
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                Icons.Rounded.Movie,
-                contentDescription = null,
-                tint = Color.White.copy(alpha = 0.04f),
-                modifier = Modifier.size(96.dp)
-            )
+        // ── Video Surface ──────────────────────────────
+        AndroidView(
+            factory = { ctx ->
+                MPVSurfaceView(
+                    context = ctx,
+                    onSurfaceReady = onSurfaceReady,
+                    onSurfaceDestroyed = onSurfaceDestroyed
+                )
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+
+        // ── Loading Indicator ──────────────────────────
+        if (playerState.isLoading) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(
+                    color = AccentBlue,
+                    modifier = Modifier.size(48.dp)
+                )
+            }
         }
 
-        // ── Top bar ─────────────────────────────────
+        // ── Error Message ──────────────────────────────
+        playerState.errorMessage?.let { error ->
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFFFF5252).copy(alpha = 0.9f)
+                    )
+                ) {
+                    Text(
+                        text = error,
+                        color = Color.White,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+            }
+        }
+
+        // ── Controls Overlay ───────────────────────────
         AnimatedVisibility(
             visible = controlsVisible,
-            enter = fadeIn(tween(150)) + slideInVertically(tween(150)) { -it },
-            exit  = fadeOut(tween(250)) + slideOutVertically(tween(250)) { -it }
+            enter = fadeIn(animationSpec = tween(200)),
+            exit = fadeOut(animationSpec = tween(200)),
+            modifier = Modifier.fillMaxSize()
         ) {
-            MpcTopBar(colors)
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Top bar
+                TopBar(colors = colors)
+
+                Spacer(Modifier.weight(1f))
+
+                // Bottom controls
+                BottomControls(
+                    colors = colors,
+                    playerState = playerState,
+                    onSeek = { newProgress ->
+                        if (MainActivity.isMpvInitialized && playerState.duration > 0) {
+                            val newPos = (newProgress * playerState.duration).toInt()
+                            MPVLib.command(arrayOf("seek", newPos.toString(), "absolute"))
+                        }
+                    },
+                    onPlayPause = {
+                        if (MainActivity.isMpvInitialized) {
+                            val newPause = playerState.isPlaying
+                            MPVLib.setPropertyBoolean("pause", newPause)
+                        }
+                    },
+                    onVolumeChange = { newVolume ->
+                        playerState.volume = newVolume
+                        playerState.isMuted = false
+                        if (MainActivity.isMpvInitialized) {
+                            MPVLib.setPropertyInt("volume", (newVolume * 100).toInt())
+                        }
+                    },
+                    onMuteToggle = {
+                        playerState.isMuted = !playerState.isMuted
+                        if (MainActivity.isMpvInitialized) {
+                            MPVLib.setPropertyBoolean("mute", playerState.isMuted)
+                        }
+                    }
+                )
+            }
         }
 
-        // ── Bottom controls ─────────────────────────
-        AnimatedVisibility(
-            visible = controlsVisible,
-            modifier = Modifier.align(Alignment.BottomCenter),
-            enter = fadeIn(tween(150)) + slideInVertically(tween(150)) { it },
-            exit  = fadeOut(tween(250)) + slideOutVertically(tween(250)) { it }
-        ) {
-            MpcBottomBar(
-                colors           = colors,
-                isPlaying        = isPlaying,
-                progress         = progress,
-                volume           = volume,
-                isMuted          = isMuted,
-                onPlayPause      = { isPlaying = !isPlaying; if (isPlaying) resetHide() },
-                onProgressChange = { progress = it },
-                onVolumeChange   = { volume = it },
-                onMuteToggle     = { isMuted = !isMuted }
-            )
-        }
-
-        // ── Context menu ────────────────────────────
+        // Context menu
         if (showContextMenu) {
             MpcContextMenu(
-                items       = contextMenuItems,
-                offset      = menuOffset,
+                items = contextMenuItems,
+                offset = menuOffset,
                 expandedSub = expandedSub,
-                colors      = colors,
-                onExpandSub = { expandedSub = if (expandedSub == it) null else it },
-                onDismiss   = { showContextMenu = false; expandedSub = null }
+                colors = colors,
+                onExpandSub = { expandedSub = it },
+                onDismiss = {
+                    showContextMenu = false
+                    expandedSub = null
+                }
             )
         }
     }
@@ -232,69 +523,58 @@ fun PlayerScreen() {
 // ─────────────────────────────────────────────
 
 @Composable
-fun MpcTopBar(colors: PlayerColors) {
-    Box(
+private fun TopBar(colors: PlayerColors) {
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .statusBarsPadding()
-            .background(colors.bgToolbar)
+            .background(colors.bgToolbarTop.copy(alpha = 0.95f))
+            .padding(horizontal = BarPadH.dp, vertical = BarPadV.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MpcIconBtn(Icons.Rounded.Menu, "Menu", colors = colors)
+            Spacer(Modifier.width(8.dp))
             Text(
-                text = "Blade.Runner.2049.2017.2160p.UHD.BluRay.HEVC.TrueHD.7.1.Atmos-HUNO.mkv",
-                color = colors.textSecondary,
-                fontSize = TimecodeSize.sp,
-                fontFamily = FontFamily.Monospace,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 4.dp)
+                "DexPlayer",
+                color = colors.textPrimary,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium
             )
-            MpcIconBtn(
-                icon   = Icons.Rounded.MoreVert,
-                desc   = "Menu",
-                size   = IconSizeMd,
-                colors = colors
-            )
+        }
+
+        Row {
+            MpcIconBtn(Icons.Rounded.FolderOpen, "Open", colors = colors)
+            MpcIconBtn(Icons.Rounded.Settings, "Settings", colors = colors)
         }
     }
 }
 
 // ─────────────────────────────────────────────
-//  BOTTOM BAR
+//  BOTTOM CONTROLS
 // ─────────────────────────────────────────────
 
 @Composable
-fun MpcBottomBar(
+private fun BottomControls(
     colors: PlayerColors,
-    isPlaying: Boolean,
-    progress: Float,
-    volume: Float,
-    isMuted: Boolean,
+    playerState: PlayerState,
+    onSeek: (Float) -> Unit,
     onPlayPause: () -> Unit,
-    onProgressChange: (Float) -> Unit,
     onVolumeChange: (Float) -> Unit,
     onMuteToggle: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .windowInsetsPadding(WindowInsets.systemBars)
-            .background(colors.bgToolbar)
+            .background(colors.bgToolbar.copy(alpha = 0.95f))
     ) {
-        // ── Seekbar ──────────────────────────────────
+        // Seek bar
         Slider(
-            value = progress,
-            onValueChange = onProgressChange,
+            value = playerState.progress,
+            onValueChange = onSeek,
             colors = SliderDefaults.colors(
-                thumbColor         = AccentBlue,
-                activeTrackColor   = AccentBlue,
+                thumbColor = AccentBlue,
+                activeTrackColor = AccentBlue,
                 inactiveTrackColor = SeekTrack
             ),
             modifier = Modifier
@@ -303,40 +583,51 @@ fun MpcBottomBar(
                 .padding(horizontal = 8.dp)
         )
 
-        // ── Toolbar ──────────────────────────────────
+        // Control buttons row
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = BarPadH.dp, vertical = BarPadV.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            MpcIconBtn(Icons.Rounded.SkipPrevious, "Previous", colors = colors, size = IconSizeSm)
-            MpcIconBtn(Icons.Rounded.Replay10,     "−10s",     colors = colors, size = IconSizeSm)
+            // Playback controls
+            MpcIconBtn(Icons.Rounded.SkipPrevious, "Previous", colors = colors)
+            MpcIconBtn(Icons.Rounded.FastRewind, "Rewind", colors = colors)
 
-            // Play/Pause
+            // Play/Pause button
             Box(
                 modifier = Modifier
                     .size(PlayBtnSize.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(colors.bgHover)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(AccentBlue)
                     .clickable(onClick = onPlayPause),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                    contentDescription = null,
-                    tint = colors.textPrimary,
+                    imageVector = if (playerState.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                    contentDescription = if (playerState.isPlaying) "Pause" else "Play",
+                    tint = Color.White,
                     modifier = Modifier.size(PlayIconSize.dp)
                 )
             }
 
-            MpcIconBtn(Icons.Rounded.Forward10, "+10s", colors = colors, size = IconSizeSm)
-            MpcIconBtn(Icons.Rounded.SkipNext,  "Next", colors = colors, size = IconSizeSm)
+            MpcIconBtn(Icons.Rounded.FastForward, "Forward", colors = colors)
+            MpcIconBtn(Icons.Rounded.SkipNext, "Next", colors = colors)
+            MpcIconBtn(Icons.Rounded.Stop, "Stop", colors = colors)
 
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(12.dp))
+
+            // Timecode
+            fun formatTime(secs: Int): String {
+                val h = secs / 3600
+                val m = (secs % 3600) / 60
+                val s = secs % 60
+                return if (h > 0) "%02d:%02d:%02d".format(h, m, s)
+                else "%02d:%02d".format(m, s)
+            }
 
             Text(
-                text = "01:24:33 / 02:43:52",
+                text = "${formatTime(playerState.currentPos)} / ${formatTime(playerState.duration)}",
                 color = colors.textSecondary,
                 fontSize = TimecodeSize.sp,
                 fontFamily = FontFamily.Monospace,
@@ -345,22 +636,23 @@ fun MpcBottomBar(
 
             Spacer(Modifier.weight(1f))
 
+            // Volume
             MpcIconBtn(
-                icon = if (isMuted) Icons.Rounded.VolumeOff
-                       else if (volume > 0.5f) Icons.Rounded.VolumeUp
-                       else Icons.Rounded.VolumeDown,
-                desc    = "Mute",
-                colors  = colors,
-                size    = IconSizeSm,
+                icon = if (playerState.isMuted) Icons.Rounded.VolumeOff
+                else if (playerState.volume > 0.5f) Icons.Rounded.VolumeUp
+                else Icons.Rounded.VolumeDown,
+                desc = "Mute",
+                colors = colors,
+                size = IconSizeSm,
                 onClick = onMuteToggle
             )
 
             Slider(
-                value = if (isMuted) 0f else volume,
+                value = if (playerState.isMuted) 0f else playerState.volume,
                 onValueChange = onVolumeChange,
                 colors = SliderDefaults.colors(
-                    thumbColor         = colors.textSecondary,
-                    activeTrackColor   = colors.textSecondary,
+                    thumbColor = colors.textSecondary,
+                    activeTrackColor = colors.textSecondary,
                     inactiveTrackColor = SeekTrack
                 ),
                 modifier = Modifier
@@ -370,17 +662,19 @@ fun MpcBottomBar(
 
             Spacer(Modifier.width(10.dp))
             HorizontalDivider(
-                modifier  = Modifier.height(20.dp).width(0.5.dp),
-                color     = colors.border
+                modifier = Modifier
+                    .height(20.dp)
+                    .width(0.5.dp),
+                color = colors.border
             )
             Spacer(Modifier.width(10.dp))
 
-            MpcIconBtn(Icons.Rounded.Subtitles,  "Subtitles",  colors = colors, size = IconSizeSm)
-            MpcIconBtn(Icons.Rounded.QueueMusic, "Playlist",   colors = colors, size = IconSizeSm)
+            MpcIconBtn(Icons.Rounded.Subtitles, "Subtitles", colors = colors, size = IconSizeSm)
+            MpcIconBtn(Icons.Rounded.QueueMusic, "Playlist", colors = colors, size = IconSizeSm)
             MpcIconBtn(Icons.Rounded.Fullscreen, "Fullscreen", colors = colors, size = IconSizeSm)
         }
 
-        // ── Status bar ───────────────────────────────
+        // Status bar
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -389,16 +683,16 @@ fun MpcBottomBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "2160p • HEVC • TrueHD 7.1 • 60fps",
-                color      = Color(0xFFFFFFFF),
-                fontSize   = StatusSize.sp,
+                playerState.mediaInfo.ifEmpty { "No file loaded" },
+                color = Color(0xFFFFFFFF),
+                fontSize = StatusSize.sp,
                 fontFamily = FontFamily.Monospace
             )
             Spacer(Modifier.weight(1f))
             Text(
-                "CPU: 12%  •  HW Decode",
-                color      = Color(0xFFFFFFFF),
-                fontSize   = StatusSize.sp,
+                if (playerState.isLoading) "Loading..." else "Ready",
+                color = Color(0xFFFFFFFF),
+                fontSize = StatusSize.sp,
                 fontFamily = FontFamily.Monospace
             )
         }
@@ -435,13 +729,13 @@ fun MpcContextMenu(
                             Text(
                                 item.label,
                                 fontSize = MenuTextSize.sp,
-                                color    = colors.textPrimary,
+                                color = colors.textPrimary,
                                 modifier = Modifier.weight(1f)
                             )
                             Icon(
                                 Icons.Rounded.ChevronRight,
                                 null,
-                                tint     = colors.textSecondary,
+                                tint = colors.textSecondary,
                                 modifier = Modifier.size(MenuIconSize.dp)
                             )
                         }
@@ -450,8 +744,8 @@ fun MpcContextMenu(
                         { Icon(it, null, tint = colors.textSecondary,
                             modifier = Modifier.size(MenuIconSize.dp)) }
                     },
-                    onClick  = { onExpandSub(item.label) },
-                    colors   = MenuDefaults.itemColors(textColor = colors.textPrimary),
+                    onClick = { onExpandSub(item.label) },
+                    colors = MenuDefaults.itemColors(textColor = colors.textPrimary),
                     modifier = Modifier.background(
                         if (expandedSub == item.label) colors.bgHover else Color.Transparent
                     )
@@ -469,9 +763,11 @@ fun MpcContextMenu(
                                     Text(sub.label, fontSize = MenuTextSize.sp,
                                         color = colors.textPrimary)
                                 },
-                                onClick  = { sub.onClick(); onDismiss() },
-                                modifier = Modifier.padding(start = 14.dp).height(32.dp),
-                                colors   = MenuDefaults.itemColors(textColor = colors.textPrimary)
+                                onClick = { sub.onClick(); onDismiss() },
+                                modifier = Modifier
+                                    .padding(start = 14.dp)
+                                    .height(32.dp),
+                                colors = MenuDefaults.itemColors(textColor = colors.textPrimary)
                             )
                         }
                     }
@@ -483,7 +779,7 @@ fun MpcContextMenu(
                             Text(
                                 item.label,
                                 fontSize = MenuTextSize.sp,
-                                color    = colors.textPrimary,
+                                color = colors.textPrimary,
                                 modifier = Modifier.weight(1f)
                             )
                             if (item.shortcut.isNotEmpty()) {
@@ -496,17 +792,17 @@ fun MpcContextMenu(
                         { Icon(it, null, tint = colors.textSecondary,
                             modifier = Modifier.size(MenuIconSize.dp)) }
                     },
-                    onClick  = { item.onClick(); onDismiss() },
-                    colors   = MenuDefaults.itemColors(textColor = colors.textPrimary),
+                    onClick = { item.onClick(); onDismiss() },
+                    colors = MenuDefaults.itemColors(textColor = colors.textPrimary),
                     modifier = Modifier.height(36.dp)
                 )
             }
 
             if (item.dividerAfter) {
                 HorizontalDivider(
-                    color     = colors.border,
+                    color = colors.border,
                     thickness = 0.5.dp,
-                    modifier  = Modifier.padding(vertical = 2.dp)
+                    modifier = Modifier.padding(vertical = 2.dp)
                 )
             }
         }
@@ -531,16 +827,16 @@ fun MpcIconBtn(
             .clip(RoundedCornerShape(2.dp))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication        = LocalIndication.current,
-                onClick           = onClick
+                indication = LocalIndication.current,
+                onClick = onClick
             ),
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector        = icon,
+            imageVector = icon,
             contentDescription = desc,
-            tint               = colors.textSecondary,
-            modifier           = Modifier.size(size.dp)
+            tint = colors.textSecondary,
+            modifier = Modifier.size(size.dp)
         )
     }
 }
