@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- res/xml/locales_config.xml -->
+<!-- Required for android:localeConfig in AndroidManifest.xml -->
+<!-- Without this file, ACTION_APP_LOCALE_SETTINGS does nothing -->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="en"/>
+    <locale android:name="es"/>
+    <locale android:name="fr"/>
+</locale-config>

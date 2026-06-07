@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- res/values-es/strings.xml  (Español) -->
+<resources>
+    <string name="app_name">DexPlayer</string>
+
+    <!-- ── Acciones ─────────────────────────────────────────────────────── -->
+    <string name="action_back">Atrás</string>
+    <string name="action_close">Cerrar</string>
+    <string name="action_cancel">Cancelar</string>
+    <string name="action_save">Guardar</string>
+    <string name="action_delete">Eliminar</string>
+    <string name="action_rename">Renombrar</string>
+    <string name="action_create">Crear</string>
+    <string name="action_search">Buscar</string>
+    <string name="action_settings">Ajustes</string>
+    <string name="action_share">Compartir</string>
+    <string name="action_stop">Detener</string>
+    <string name="action_minimize">Minimizar</string>
+    <string name="action_sort">Ordenar</string>
+    <string name="action_clear">Borrar</string>
+
+    <!-- ── Controles del reproductor ────────────────────────────────────── -->
+    <string name="ctrl_play_pause">Reproducir / Pausar</string>
+    <string name="ctrl_skip_next">Siguiente</string>
+    <string name="ctrl_skip_previous">Anterior</string>
+    <string name="ctrl_shuffle">Aleatorio</string>
+    <string name="ctrl_repeat">Repetir</string>
+    <string name="ctrl_forward">Avanzar</string>
+    <string name="ctrl_rewind">Retroceder</string>
+    <string name="ctrl_more">Más</string>
+
+    <!-- ── Pestañas de la biblioteca ────────────────────────────────────── -->
+    <string name="tab_music">Música</string>
+    <string name="tab_video">Vídeo</string>
+    <string name="tab_playlists">Listas</string>
+    <string name="tab_songs">Canciones</string>
+    <string name="tab_artists">Artistas</string>
+    <string name="tab_genres">Géneros</string>
+
+    <!-- ── Ordenar ──────────────────────────────────────────────────────── -->
+    <string name="sort_by_title">Por título</string>
+    <string name="sort_by_artist">Por artista</string>
+    <string name="sort_by_album">Por álbum</string>
+
+    <!-- ── Búsqueda ─────────────────────────────────────────────────────── -->
+    <string name="hint_search_music">Buscar canciones, artistas, álbumes…</string>
+    <string name="hint_search_video">Buscar vídeos…</string>
+
+    <!-- ── Conteos ──────────────────────────────────────────────────────── -->
+    <plurals name="songs_count">
+        <item quantity="one">%d canción</item>
+        <item quantity="other">%d canciones</item>
+    </plurals>
+    <plurals name="videos_count">
+        <item quantity="one">%d vídeo</item>
+        <item quantity="other">%d vídeos</item>
+    </plurals>
+    <plurals name="tracks_count">
+        <item quantity="one">%d pista</item>
+        <item quantity="other">%d pistas</item>
+    </plurals>
+    <plurals name="artists_songs_count">
+        <item quantity="one">%d canción</item>
+        <item quantity="other">%d canciones</item>
+    </plurals>
+
+    <!-- ── Estados vacíos ───────────────────────────────────────────────── -->
+    <string name="empty_music_title">No se encontró música</string>
+    <string name="empty_music_subtitle">Añade archivos MP3, FLAC u otros formatos de audio</string>
+    <string name="empty_video_title">No se encontraron vídeos</string>
+    <string name="empty_video_subtitle">Añade archivos MP4, MKV u otros formatos de vídeo</string>
+    <string name="empty_results_title">Sin resultados</string>
+    <string name="empty_results_subtitle">Prueba con otro título, artista o álbum</string>
+    <string name="no_artists">No se encontraron artistas</string>
+    <string name="no_genres">No se encontraron géneros</string>
+    <string name="search_no_results">Sin resultados para &quot;%1$s&quot;</string>
+
+    <!-- ── Desconocido / alternativas ───────────────────────────────────── -->
+    <string name="unknown_track">Pista desconocida</string>
+    <string name="unknown_artist">Artista desconocido</string>
+    <string name="unknown_genre">Género desconocido</string>
+    <string name="unknown_video">Vídeo desconocido</string>
+    <string name="unknown">Desconocido</string>
+    <string name="audio_label">Audio</string>
+    <string name="buffering">Cargando…</string>
+
+    <!-- ── Lista de reproducción ────────────────────────────────────────── -->
+    <string name="playlist_new">Nueva lista</string>
+    <string name="playlist_name_hint">Nombre de la lista</string>
+    <string name="playlist_empty_title">Lista vacía</string>
+    <string name="playlist_empty_hint">Mantén pulsada una canción de la biblioteca para añadirla</string>
+    <string name="playlist_no_playlists_title">Aún no hay listas</string>
+    <string name="playlist_no_playlists_subtitle">Toca + para crear una o importa un archivo M3U</string>
+    <string name="playlist_delete_confirm">¿Eliminar lista?</string>
+    <string name="playlist_remove_track_confirm">¿Quitar pista?</string>
+    <string name="playlist_import_m3u">Importar M3U</string>
+    <string name="playlist_export_m3u">Exportar M3U</string>
+    <string name="playlist_imported_name">Lista importada</string>
+    <string name="playlist_add_hint">Nueva lista…</string>
+    <string name="action_create_and_add">Crear y añadir</string>
+    <string name="action_rename_playlist">Renombrar lista</string>
+
+    <!-- ── Menú de opciones ─────────────────────────────────────────────── -->
+    <string name="menu_add_to_playlist">Añadir a lista</string>
+    <string name="menu_play_next">Reproducir a continuación</string>
+    <string name="menu_sleep_timer">Temporizador</string>
+    <string name="menu_cancel_sleep_timer">Cancelar temporizador (%1$dm restantes)</string>
+    <string name="menu_track_info">Información de pista</string>
+
+    <!-- ── Mensajes ─────────────────────────────────────────────────────── -->
+    <string name="msg_added_to">Añadido a &quot;%1$s&quot;</string>
+    <string name="msg_playing_next">Reproduciendo a continuación</string>
+    <string name="msg_sleep_timer_set">Temporizador: %1$d min</string>
+    <string name="msg_sleep_timer_cancelled">Temporizador cancelado</string>
+
+    <!-- ── Diálogo de temporizador ──────────────────────────────────────── -->
+    <string name="sleep_timer_title">Temporizador</string>
+    <string name="sleep_timer_stop_after">Detener reproducción después de:</string>
+    <string name="sleep_timer_minutes">%1$d minutos</string>
+
+    <!-- ── Diálogo de información de pista ──────────────────────────────── -->
+    <string name="track_info_title">Info de pista</string>
+    <string name="track_info_label_title">Título</string>
+    <string name="track_info_label_artist">Artista</string>
+    <string name="track_info_label_duration">Duración</string>
+    <string name="track_info_label_format">Formato</string>
+    <string name="track_info_label_bitrate">Bitrate</string>
+    <string name="track_info_label_size">Tamaño</string>
+    <string name="track_info_label_file">Archivo</string>
+    <string name="track_info_album_art">Carátula</string>
+
+    <!-- ── Ajustes ──────────────────────────────────────────────────────── -->
+    <string name="settings_title">Ajustes</string>
+    <string name="settings_section_general">General</string>
+    <string name="settings_section_music_player">Reproductor de música</string>
+    <string name="settings_section_excluded_folders">Carpetas excluidas</string>
+    <string name="settings_section_about">Acerca de</string>
+
+    <string name="settings_theme">Tema</string>
+    <string name="settings_theme_follow">Según el sistema</string>
+    <string name="settings_theme_light">Claro</string>
+    <string name="settings_theme_dark">Oscuro</string>
+    <string name="settings_choose_theme">Elegir tema</string>
+
+    <string name="settings_language">Idioma</string>
+    <string name="settings_language_subtitle">Cambiar en ajustes del sistema</string>
+
+    <string name="settings_default_shuffle">Aleatorio por defecto</string>
+    <string name="settings_default_shuffle_on">Aleatorio activado al iniciar la reproducción</string>
+    <string name="settings_default_shuffle_off">Aleatorio desactivado al iniciar la reproducción</string>
+
+    <string name="settings_equalizer">Ecualizador</string>
+    <string name="settings_equalizer_subtitle">Abrir ecualizador del sistema</string>
+
+    <string name="settings_crossfade">Crossfade</string>
+    <string name="settings_crossfade_subtitle">Aún no disponible — toca para saber más</string>
+    <string name="settings_crossfade_explanation">El crossfade entre pistas requiere mezcla de audio en tiempo real, lo que necesita una canalización de audio más compleja. Esta función está prevista para una actualización futura.</string>
+
+    <string name="settings_add_excluded_folder">Añadir carpeta excluida</string>
+    <string name="settings_add_excluded_subtitle">Los archivos de esta carpeta no aparecerán en la biblioteca</string>
+    <string name="settings_no_excluded">Ninguna carpeta excluida</string>
+
+    <string name="settings_about_version">Versión 1.0.0</string>
+</resources>

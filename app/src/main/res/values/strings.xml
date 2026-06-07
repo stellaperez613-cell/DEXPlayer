@@ -1,3 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- res/values/strings.xml  (English — default) -->
 <resources>
     <string name="app_name">DexPlayer</string>
+
+    <!-- ── Actions ──────────────────────────────────────────────────────── -->
+    <string name="action_back">Back</string>
+    <string name="action_close">Close</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_save">Save</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_rename">Rename</string>
+    <string name="action_create">Create</string>
+    <string name="action_search">Search</string>
+    <string name="action_settings">Settings</string>
+    <string name="action_share">Share</string>
+    <string name="action_stop">Stop</string>
+    <string name="action_minimize">Minimize</string>
+    <string name="action_sort">Sort</string>
+    <string name="action_clear">Clear</string>
+
+    <!-- ── Player controls ──────────────────────────────────────────────── -->
+    <string name="ctrl_play_pause">Play / Pause</string>
+    <string name="ctrl_skip_next">Next</string>
+    <string name="ctrl_skip_previous">Previous</string>
+    <string name="ctrl_shuffle">Shuffle</string>
+    <string name="ctrl_repeat">Repeat</string>
+    <string name="ctrl_forward">Forward</string>
+    <string name="ctrl_rewind">Rewind</string>
+    <string name="ctrl_more">More</string>
+
+    <!-- ── Library tabs ─────────────────────────────────────────────────── -->
+    <string name="tab_music">Music</string>
+    <string name="tab_video">Video</string>
+    <string name="tab_playlists">Playlists</string>
+    <string name="tab_songs">Songs</string>
+    <string name="tab_artists">Artists</string>
+    <string name="tab_genres">Genres</string>
+
+    <!-- ── Sort ─────────────────────────────────────────────────────────── -->
+    <string name="sort_by_title">By Title</string>
+    <string name="sort_by_artist">By Artist</string>
+    <string name="sort_by_album">By Album</string>
+
+    <!-- ── Search ───────────────────────────────────────────────────────── -->
+    <string name="hint_search_music">Search songs, artists, albums…</string>
+    <string name="hint_search_video">Search videos…</string>
+
+    <!-- ── Counts (use String.format or plurals) ────────────────────────── -->
+    <plurals name="songs_count">
+        <item quantity="one">%d song</item>
+        <item quantity="other">%d songs</item>
+    </plurals>
+    <plurals name="videos_count">
+        <item quantity="one">%d video</item>
+        <item quantity="other">%d videos</item>
+    </plurals>
+    <plurals name="tracks_count">
+        <item quantity="one">%d track</item>
+        <item quantity="other">%d tracks</item>
+    </plurals>
+    <plurals name="artists_songs_count">
+        <item quantity="one">%d song</item>
+        <item quantity="other">%d songs</item>
+    </plurals>
+
+    <!-- ── Empty states ─────────────────────────────────────────────────── -->
+    <string name="empty_music_title">No music files found</string>
+    <string name="empty_music_subtitle">Add MP3, FLAC or other audio files</string>
+    <string name="empty_video_title">No video files found</string>
+    <string name="empty_video_subtitle">Add MP4, MKV or other video files</string>
+    <string name="empty_results_title">No results</string>
+    <string name="empty_results_subtitle">Try a different title, artist or album</string>
+    <string name="no_artists">No artists found</string>
+    <string name="no_genres">No genres found</string>
+    <string name="search_no_results">No results for &quot;%1$s&quot;</string>
+
+    <!-- ── Unknown / fallbacks ──────────────────────────────────────────── -->
+    <string name="unknown_track">Unknown Track</string>
+    <string name="unknown_artist">Unknown Artist</string>
+    <string name="unknown_genre">Unknown Genre</string>
+    <string name="unknown_video">Unknown Video</string>
+    <string name="unknown">Unknown</string>
+    <string name="audio_label">Audio</string>
+    <string name="buffering">Buffering…</string>
+
+    <!-- ── Playlist ──────────────────────────────────────────────────────── -->
+    <string name="playlist_new">New Playlist</string>
+    <string name="playlist_name_hint">Playlist name</string>
+    <string name="playlist_empty_title">Empty playlist</string>
+    <string name="playlist_empty_hint">Long-press songs in your library to add them here</string>
+    <string name="playlist_no_playlists_title">No playlists yet</string>
+    <string name="playlist_no_playlists_subtitle">Tap + to create one or import an M3U file</string>
+    <string name="playlist_delete_confirm">Delete playlist?</string>
+    <string name="playlist_remove_track_confirm">Remove track?</string>
+    <string name="playlist_import_m3u">Import M3U</string>
+    <string name="playlist_export_m3u">Export M3U</string>
+    <string name="playlist_imported_name">Imported Playlist</string>
+    <string name="playlist_add_hint">New playlist…</string>
+    <string name="action_create_and_add">Create &amp; Add</string>
+    <string name="action_rename_playlist">Rename Playlist</string>
+
+    <!-- ── More menu ─────────────────────────────────────────────────────── -->
+    <string name="menu_add_to_playlist">Add to playlist</string>
+    <string name="menu_play_next">Play next</string>
+    <string name="menu_sleep_timer">Sleep timer</string>
+    <string name="menu_cancel_sleep_timer">Cancel sleep timer (%1$dm left)</string>
+    <string name="menu_track_info">Track info</string>
+
+    <!-- ── Messages ──────────────────────────────────────────────────────── -->
+    <string name="msg_added_to">Added to &quot;%1$s&quot;</string>
+    <string name="msg_playing_next">Playing next</string>
+    <string name="msg_sleep_timer_set">Sleep timer: %1$d min</string>
+    <string name="msg_sleep_timer_cancelled">Sleep timer cancelled</string>
+
+    <!-- ── Sleep timer dialog ─────────────────────────────────────────────── -->
+    <string name="sleep_timer_title">Sleep Timer</string>
+    <string name="sleep_timer_stop_after">Stop playback after:</string>
+    <string name="sleep_timer_minutes">%1$d minutes</string>
+
+    <!-- ── Track info dialog ──────────────────────────────────────────────── -->
+    <string name="track_info_title">Track Info</string>
+    <string name="track_info_label_title">Title</string>
+    <string name="track_info_label_artist">Artist</string>
+    <string name="track_info_label_duration">Duration</string>
+    <string name="track_info_label_format">Format</string>
+    <string name="track_info_label_bitrate">Bitrate</string>
+    <string name="track_info_label_size">Size</string>
+    <string name="track_info_label_file">File</string>
+    <string name="track_info_album_art">Album Art</string>
+
+    <!-- ── Settings ───────────────────────────────────────────────────────── -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_section_general">General</string>
+    <string name="settings_section_music_player">Music Player</string>
+    <string name="settings_section_excluded_folders">Excluded Folders</string>
+    <string name="settings_section_about">About</string>
+
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_follow">Follow system</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_choose_theme">Choose theme</string>
+
+    <string name="settings_language">Language</string>
+    <string name="settings_language_subtitle">Change in system app settings</string>
+
+    <string name="settings_default_shuffle">Default shuffle</string>
+    <string name="settings_default_shuffle_on">Shuffle enabled when starting playback</string>
+    <string name="settings_default_shuffle_off">Shuffle disabled when starting playback</string>
+
+    <string name="settings_equalizer">Equalizer</string>
+    <string name="settings_equalizer_subtitle">Open system equalizer</string>
+
+    <string name="settings_crossfade">Crossfade</string>
+    <string name="settings_crossfade_subtitle">Not available yet — tap to learn more</string>
+    <string name="settings_crossfade_explanation">Crossfade between tracks requires real-time audio mixing which needs a more complex audio pipeline. This feature is planned for a future update.</string>
+
+    <string name="settings_add_excluded_folder">Add excluded folder</string>
+    <string name="settings_add_excluded_subtitle">Files in this folder won\'t appear in the library</string>
+    <string name="settings_no_excluded">No folders excluded</string>
+
+    <string name="settings_about_version">Version 1.0.0</string>
 </resources>
